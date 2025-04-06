@@ -1,12 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Runtime.InteropServices;
-using System.Runtime.Remoting.Metadata;
 
 namespace Neural_Network
 {
@@ -22,17 +17,31 @@ namespace Neural_Network
         private double[] HiddenNeuronBias;
         private double[] OutputNeuronBias;
 
+        private double[] HiddenActivation;
+        private double[] OutputActivation;
+
+        private double[] Input;
+
+        public double CostValue;
+        public double LearningCoefficient = 2.4;
+
+        public int IntendedOutput;
+
         public Network(int InSize, int HidSize, int OutSize)
         {
             NumInputNeurons = InSize; NumHiddenNeurons = HidSize; NumOutputNeurons = OutSize;
 
-            InputHiddenWeights = new double[HidSize, InSize];
-            OutputHiddenWeights = new double[OutSize, HidSize];
+            InputHiddenWeights = new double[InSize, HidSize];
+            OutputHiddenWeights = new double[HidSize, OutSize];
 
             HiddenNeuronBias = new double[HidSize];
             OutputNeuronBias = new double[OutSize];
 
+            HiddenActivation = new double[HidSize];
+            OutputActivation = new double[OutSize];
+
             InitRandWeight(new List<double[,]> { InputHiddenWeights, OutputHiddenWeights });
+            InitRandBias();
         }
 
         public void InitRandWeight(List<double[,]> arrays)
@@ -51,54 +60,114 @@ namespace Neural_Network
             }
         }
 
+        public void InitRandBias()
+        {
+            Random rand = new Random();
+
+            foreach (var item in new List<double[]> { HiddenNeuronBias, OutputNeuronBias })
+            {
+                for (int i = 0; i < item.Count(); i++)
+                {
+                    item[i] = rand.NextDouble();
+                }
+            }
+        }
+
         public double[] ForwardPropagation(double[] input)
         {
             double[] HiddenOuputValues = new double[NumHiddenNeurons];
 
-            for (int i = 0; i < InputHiddenWeights.GetLength(0); i++)
+            for (int i = 0; i < InputHiddenWeights.GetLength(1); i++)
             {
                 for (int j = 0; j < 1; j++)
                 {
                     double value = 0;
-                    for (int k = 0; k < input.GetLength(0); k++)
+                    for (int k = 0; k < InputHiddenWeights.GetLength(0); k++)
                     {
-                        value += InputHiddenWeights[i, k] * input[k];
+                        value += InputHiddenWeights[k, i] * input[k];
                     }
-                    value = SigmoidFunc(value + HiddenNeuronBias[i]);
+                    value = SigmoidFunc(value - HiddenNeuronBias[i]);
                     HiddenOuputValues[i] = value;
                 }
             }
-
+            HiddenActivation = HiddenOuputValues;
             double[] OutputValues = new double[NumOutputNeurons];
 
-            for (int i = 0; i < OutputHiddenWeights.GetLength(0); i++)
+            for (int i = 0; i < OutputHiddenWeights.GetLength(1); i++)
             {
                 for (int j = 0; j < 1; j++)
                 {
                     double value = 0;
-                    for (int k = 0; k < HiddenOuputValues.GetLength(0); k++)
+                    for (int k = 0; k < OutputHiddenWeights.GetLength(0); k++)
                     {
-                        value += OutputHiddenWeights[i, k] * input[k];
+                        value += OutputHiddenWeights[k, i] * HiddenActivation[i];
                     }
-                    value = SigmoidFunc(value + OutputNeuronBias[i]);
+                    value = SigmoidFunc(value - OutputNeuronBias[i]);
                     OutputValues[i] = value;
                 }
             }
+            OutputActivation = OutputValues;
 
-            return SoftMax(OutputValues);
+            double[] SMout = SoftMax(OutputValues);
+            return SMout;
         }
 
-        public void BackPropogation()
+        public void BackPropogation(int IntendedOutput, double[] input)
         {
+            double[] OutputError = new double[OutputActivation.Length];
 
+            for (int NeuronPerOutput = 0; NeuronPerOutput < OutputActivation.Length; NeuronPerOutput++)
+            {
+                double zL = OutputNeuronBias[NeuronPerOutput];
+                for (int i = 0; i < HiddenActivation.Length; i++)
+                {
+                    zL += (OutputHiddenWeights[i, NeuronPerOutput] * HiddenActivation[i]);
+                }
+                OutputError[NeuronPerOutput] = zL;
+            }
+
+            // Gradient descent for the weights of the arcs
+            for (int i = 0; i < HiddenActivation.Length; i++)
+            {
+                double sum = 0;
+
+                for (int j = 0; j < OutputActivation.Length; j++)
+                {
+                    double y = (IntendedOutput == j) ? 1 : 0;
+                    double dCdW = (HiddenActivation[i]) * (DerivativeSigmoidFunc(OutputError[j])) * (2 * (OutputActivation[j] - y));
+
+                    OutputHiddenWeights[i, j] -= LearningCoefficient * dCdW;
+
+                    sum += (DerivativeSigmoidFunc(OutputError[j] * (OutputActivation[j] - y)));
+                }
+
+
+                double[] HiddenError = new double[NumInputNeurons];
+                double hiddenError = 0;
+
+                for (int j = 0; j < NumInputNeurons; j++)
+                {
+                    double dCdW = input[i] * HiddenError[j];
+                    InputHiddenWeights[j,i] -= LearningCoefficient * dCdW;
+
+                    hiddenError += input[j] * InputHiddenWeights[j,i];
+                }
+                HiddenError[i] = hiddenError;
+            }
         }
 
-        public double SigmoidFunc(double InputValue) => (1d / (1 + Math.Pow(Math.E, 0 - InputValue)));
+        public double SigmoidFunc(double InputValue) => (1d / (1 + Math.Exp(0 - InputValue)));
+
+        public double DerivativeSigmoidFunc(double InputValue)
+        {
+            double Sig = SigmoidFunc(InputValue);
+            return Sig * (1 - Sig);
+        }
 
         public double[] SoftMax(double[] InputValues)
         {
             double[] OutputProbabilities = new double[InputValues.Length];
-            
+
             for (int i = 0; i < InputValues.Length; i++)
             {
                 OutputProbabilities[i] = Math.Pow(Math.E, InputValues[i]);
@@ -130,7 +199,7 @@ namespace Neural_Network
                 sum += (Math.Pow(dif, 2));
             }
 
-            return sum; 
+            return sum;
         }
 
         public int MostLikely(double[] Probabilities)
@@ -139,9 +208,12 @@ namespace Neural_Network
             double max = Probabilities.Max();
             int index = P.IndexOf(max);
 
-            // Console.WriteLine($"Output: {index}");
-
             return index;
+        }
+
+        public void SetCostValue(double value)
+        {
+            CostValue = value;
         }
     }
 
@@ -200,7 +272,7 @@ namespace Neural_Network
             using (BinaryReader Br = new BinaryReader(File.OpenRead("C:\\Users\\arran\\source\\repos\\Neural Network\\Neural Network\\MNIST Labelled Dataset\\t10k-labels.idx1-ubyte")))
             {
                 int MagicNumber = BitConverter.ToInt32(Br.ReadBytes(4).Reverse().ToArray(), 0);
-                
+
                 if (MagicNumber == 2049)
                 {
                     int NumLabels = BitConverter.ToInt32(Br.ReadBytes(4).Reverse().ToArray(), 0);
@@ -255,11 +327,27 @@ namespace Neural_Network
                 double[] Image = MNIST.Images[i];
 
                 double[] Val = NeuralNetwork.ForwardPropagation(Image);
+
+                NeuralNetwork.BackPropogation(MNIST.Labels[i], Image);
+
                 totalCost += NeuralNetwork.Cost(MNIST.Labels[i], Val);
             }
 
             double averageCost = totalCost / MNIST.totalImages;
+            NeuralNetwork.SetCostValue(averageCost);
             Console.WriteLine(averageCost);
+
+            for (int i = 0; i < 5; i++)
+            {
+                Random rand = new Random();
+                int index = rand.Next(0, 1000);
+
+                double[] Val = NeuralNetwork.ForwardPropagation(MNIST.Images[index]);
+                Console.WriteLine(NeuralNetwork.MostLikely(Val));
+            }
+
+
+            NeuralNetwork.InitRandBias();
 
             Console.ReadKey();
         }
