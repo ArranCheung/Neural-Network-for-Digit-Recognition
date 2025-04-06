@@ -129,30 +129,13 @@ namespace Neural_Network
             // Gradient descent for the weights of the arcs
             for (int i = 0; i < HiddenActivation.Length; i++)
             {
-                double sum = 0;
-
                 for (int j = 0; j < OutputActivation.Length; j++)
                 {
                     double y = (IntendedOutput == j) ? 1 : 0;
                     double dCdW = (HiddenActivation[i]) * (DerivativeSigmoidFunc(OutputError[j])) * (2 * (OutputActivation[j] - y));
 
                     OutputHiddenWeights[i, j] -= LearningCoefficient * dCdW;
-
-                    sum += (DerivativeSigmoidFunc(OutputError[j] * (OutputActivation[j] - y)));
                 }
-
-
-                double[] HiddenError = new double[NumInputNeurons];
-                double hiddenError = 0;
-
-                for (int j = 0; j < NumInputNeurons; j++)
-                {
-                    double dCdW = input[i] * HiddenError[j];
-                    InputHiddenWeights[j,i] -= LearningCoefficient * dCdW;
-
-                    hiddenError += input[j] * InputHiddenWeights[j,i];
-                }
-                HiddenError[i] = hiddenError;
             }
         }
 
