@@ -344,6 +344,29 @@ namespace Neural_Network
             return OutputProbabilities;
         }
 
+        public int TestCase(double[] Image, int Desired)
+        {
+            double[] Val = ForwardPropagation(Image, Desired);
+            int guess = MostLikely(Val);
+
+            Console.WriteLine($"Network's guess: {guess}");
+
+            if (guess == Desired)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("Correct");
+                Console.ResetColor();
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Incorrect");
+                Console.ResetColor();
+            }
+
+            return guess;
+        }
+
         public double CostCalc(double OutputValue, double Target) => (OutputValue - Target);
         public double Cost(int DesiredValue, double[] Probabilities)
         {
@@ -382,12 +405,12 @@ namespace Neural_Network
         static List<int> NewIncorrect = new List<int>();
         static List<int> PreviousWrong;
 
-        static List<dynamic> ReadImages()
+        static List<dynamic> ReadImages(string path)
         {
             List<double[,]> Images = new List<double[,]>();
             List<double[]> ImageData = new List<double[]>();
 
-            using (BinaryReader Br = new BinaryReader(File.OpenRead("MNIST Labelled Dataset\\train-images.idx3-ubyte")))
+            using (BinaryReader Br = new BinaryReader(File.OpenRead(path)))
             {
                 int MagicNumber = BitConverter.ToInt32(Br.ReadBytes(4).Reverse().ToArray(), 0);
                 int NumImages = BitConverter.ToInt32(Br.ReadBytes(4).Reverse().ToArray(), 0);
@@ -427,11 +450,11 @@ namespace Neural_Network
             return new List<dynamic> { Images, ImageData };
         }
 
-        static List<int> ReadLabels()
+        static List<int> ReadLabels(string path)
         {
             List<int> Labels = new List<int>();
 
-            using (BinaryReader Br = new BinaryReader(File.OpenRead("MNIST Labelled Dataset\\train-labels.idx1-ubyte")))
+            using (BinaryReader Br = new BinaryReader(File.OpenRead(path)))
             {
                 int MagicNumber = BitConverter.ToInt32(Br.ReadBytes(4).Reverse().ToArray(), 0);
 
@@ -451,7 +474,7 @@ namespace Neural_Network
             return Labels;
         }
 
-        static void WriteImage(double[,] Matrix, int label)
+        static void WriteImage(double[,] Matrix, int label = -1, bool display = false)
         {
             for (int i = 0; i < Matrix.GetLength(0); i++)
             {
@@ -471,7 +494,10 @@ namespace Neural_Network
                 Console.WriteLine();
             }
 
-            Console.WriteLine($"Value: {label}");
+            if (display)
+            {
+                Console.WriteLine($"Value: {label}");
+            }
         }
 
         static void WriteProb(double value)
@@ -587,8 +613,8 @@ namespace Neural_Network
             PreviousWrong = ReadIncorrect();
 
             // Reading Labels and Images
-            List<int> labels = ReadLabels();
-            List<dynamic> images = ReadImages();
+            List<int> labels = ReadLabels("MNIST Labelled Dataset\\train-labels.idx1-ubyte");
+            List<dynamic> images = ReadImages("MNIST Labelled Dataset\\train-images.idx3-ubyte");
             MNIST.Init(labels, images[0], images[1]);
 
             // Instantiating a new Network
@@ -597,13 +623,66 @@ namespace Neural_Network
             // Setup the networks weights correctly
             InitaliseNetwork();
 
-            // Train network
-            TrainingCycle(MNIST.totalImages, 10,true,true);
+            // Load Test dataset
+            List<int> testLabels = ReadLabels("MNIST Labelled Dataset\\t10k-labels.idx1-ubyte");
+            List<dynamic> testImages = ReadImages("MNIST Labelled Dataset\\t10k-images.idx3-ubyte");
+            MNIST.InitTest(testLabels, testImages[0], testImages[1]);
 
+            // Show menu
+            Menu();
 
             WriteIncorrect(NewIncorrect);
             NeuralNetwork.Save();
             Console.ReadKey();
+        }
+
+        static void Menu()
+        {
+            bool MenuAlive = true;
+            while (MenuAlive)
+            {
+                Console.WriteLine();
+                Console.WriteLine("1. Train network");
+                Console.WriteLine("2. Test network");
+                Console.WriteLine("3. Quit");
+
+                Console.Write("Enter option: ");
+                int option = int.Parse(Console.ReadLine());
+
+                switch (option)
+                {
+                    case 1:
+                        Console.WriteLine("Enter number of iterations");
+                        int iterations = int.Parse(Console.ReadLine());
+
+                        Console.WriteLine("Enter number of items per iteration");
+                        int batch = int.Parse(Console.ReadLine());
+
+                        TrainingCycle(batch, iterations, true);
+                        break;
+                    case 2:
+                        Console.WriteLine("Test with random case (y/n)?");
+                        string randCase = Console.ReadLine();
+                        if (randCase.ToUpper() == "Y")
+                        {
+                            int index = rand.Next(0, MNIST.totalTestImages);
+                            double[] image = MNIST.testImages[index];
+
+                            WriteImage(MNIST.testImagesArray[index]);
+
+                            NeuralNetwork.TestCase(image, MNIST.testLabels[index]);
+                        }
+                        else
+                        {
+                            // Put stuff here to let user draw out an image
+                        }
+
+                        break;
+                    case 3:
+                        MenuAlive = false;
+                        break;
+                }
+            }
         }
     }
 }
