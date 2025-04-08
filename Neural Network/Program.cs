@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Metadata;
+using System.Threading;
 
 namespace Neural_Network
 {
@@ -159,10 +161,10 @@ namespace Neural_Network
         {
             using (StreamReader sr = new StreamReader("Bias.txt"))
             {
+                bool hidden = true;
                 while (!sr.EndOfStream)
                 {
                     string words = sr.ReadLine();
-                    bool hidden = true;
 
                     if (words == "Output Neuron Bias") { hidden = false; }
 
@@ -181,6 +183,7 @@ namespace Neural_Network
                                 {
                                     OutputNeuronBias[pos] = Convert.ToDouble(bias);
                                 }
+                                pos++;
                             }
                         }
                     }
@@ -217,6 +220,8 @@ namespace Neural_Network
             IntendedOutput = ActualOutput;
             Input = input;
             layersActivation[2] = input;
+
+
             double[] HiddenOuputValues = new double[NumHiddenNeurons];
             PreFuncHiddenValues = new double[NumHiddenNeurons];
 
@@ -254,7 +259,7 @@ namespace Neural_Network
             return SMout;
         }
 
-        public double WeightDerivative(int layer, int activationIndex, int weightIndex, double activationFromPrevious) => (layersWeights[layer][weightIndex, activationIndex]) * activationFromPrevious;
+        public double HiddenDeltaErrorCalc(int layer, int activationIndex, int weightIndex, double activationFromPrevious) => (layersWeights[layer][weightIndex, activationIndex]) * activationFromPrevious;
 
         public void BackPropogation(int target, double[] input)
         {
@@ -275,7 +280,7 @@ namespace Neural_Network
                 double sum = 0;
                 for (int o = 0; o < NumOutputNeurons; o++)
                 {
-                    sum += WeightDerivative(0, o, h, outputDeltas[o]);
+                    sum += HiddenDeltaErrorCalc(0, o, h, outputDeltas[o]);
                 }
                 hiddenDeltas[h] = sum * DerivativeReLu(a);
             }
@@ -371,6 +376,12 @@ namespace Neural_Network
 
     internal class Program
     {
+        static Random rand = new Random();
+        static Network NeuralNetwork;
+
+        static List<int> NewIncorrect = new List<int>();
+        static List<int> PreviousWrong;
+
         static List<dynamic> ReadImages()
         {
             List<double[,]> Images = new List<double[,]>();
@@ -440,13 +451,13 @@ namespace Neural_Network
             return Labels;
         }
 
-        static void WriteImage(double[,] Matrix)
+        static void WriteImage(double[,] Matrix, int label)
         {
             for (int i = 0; i < Matrix.GetLength(0); i++)
             {
                 for (int j = 0; j < Matrix.GetLength(1); j++)
                 {
-                    if (Matrix[i, j] > 60)
+                    if (Matrix[i, j] > 0.5)
                     {
                         Console.BackgroundColor = ConsoleColor.White;
                         Console.Write(" ");
@@ -459,6 +470,8 @@ namespace Neural_Network
                 }
                 Console.WriteLine();
             }
+
+            Console.WriteLine($"Value: {label}");
         }
 
         static void WriteProb(double value)
@@ -491,53 +504,41 @@ namespace Neural_Network
             return values;
         }
 
-        static void Main(string[] args)
+        static void TrainingCycle(int BatchSize, int iterations, bool random = false, bool display = false)
         {
-            Random rand = new Random();
-
-            // Lists for incorrect values identified
-            List<int> NewIncorrect = new List<int>();
-            List<int> PreviousWrong = ReadIncorrect();
-
-
-            // Reading Labels and Images
-            List<int> labels = ReadLabels();
-            List<dynamic> images = ReadImages();
-            MNIST.Init(labels, images[0], images[1]);
-
-            // Instantiating a new Network
-            Network NeuralNetwork = new Network(784, 128, 10);
-
-            // Sizes per group iteration
-            int BatchSize = MNIST.totalImages; //PreviousWrong.Count;
-
-            for (int Iterations = 0; Iterations < (30); Iterations++)
+            for (int Iterations = 0; Iterations < iterations; Iterations++)
             {
                 double totalCost = 0; int correct = 0;
 
                 for (int i = 0; i < BatchSize; i++)
                 {
-                    int index = i; //rand.Next(0, MNIST.totalImages);
+                    int index = random ? rand.Next(0, MNIST.totalImages) : i;
 
                     // Select image from dataset
                     double[] Image = /*MNIST.Images[PreviousWrong[index]];*/ MNIST.Images[index];
+
+                    // Display the image
+                    //WriteImage(MNIST.ImageArray[index], MNIST.Labels[index]);
 
                     // Use network to determine the output
                     double[] Val = NeuralNetwork.ForwardPropagation(Image, MNIST.Labels[index]);
                     int guess = NeuralNetwork.MostLikely(Val);
 
-                    if (guess == MNIST.Labels[index])
+                    if (display)
                     {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        correct++;
-                    } // Update console colour to correctness
-                    else
-                    {
-                        NewIncorrect.Add(index);
-                    } // Write the incorrecly identified into to a file for further training
+                        if (guess == MNIST.Labels[index])
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            correct++;
+                        } // Update console colour to correctness
+                        else
+                        {
+                            NewIncorrect.Add(index);
+                        } // Write the incorrecly identified into to a file for further training
 
-                    Console.Write(guess);
-                    Console.ResetColor();
+                        Console.Write(guess);
+                        Console.ResetColor();
+                    } // display the networks guess
 
                     // Train the network
                     NeuralNetwork.BackPropogation(MNIST.Labels[index], Image);
@@ -545,7 +546,7 @@ namespace Neural_Network
                     // Update the total cost for the network
                     totalCost += NeuralNetwork.Cost(MNIST.Labels[index], Val);
 
-                    if (i % 200 == 0)
+                    if (i % 100 == 0)
                     {
                         NeuralNetwork.Save();
                     } // Save network configuration periodically
@@ -555,21 +556,50 @@ namespace Neural_Network
                 double averageCost = totalCost / BatchSize;
                 NeuralNetwork.SetCostValue(averageCost);
 
-                Console.WriteLine();
-                Console.WriteLine(averageCost);
-
                 // Calculate the accuracy of the model
                 double perct = (double)correct / BatchSize;
+                WriteProb(perct);
 
-                Console.ForegroundColor = (perct > 0.65) ? ConsoleColor.Green : ConsoleColor.White;
-                Console.ForegroundColor = (perct < 0.35) ? ConsoleColor.Red : ConsoleColor.White;
+                if (display)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine(averageCost);
 
-                Console.WriteLine(perct);
-                Console.ResetColor();
+                    Console.ForegroundColor = (perct > 0.65) ? ConsoleColor.Green : ConsoleColor.White;
+                    Console.ForegroundColor = (perct < 0.35) ? ConsoleColor.Red : ConsoleColor.White;
 
-                
-                Console.WriteLine();
+                    Console.WriteLine(perct);
+                    Console.ResetColor();
+
+                    Console.WriteLine();
+                } // display the average cost ++ model accuracy
             }
+        }
+
+        static void InitaliseNetwork()
+        {
+            TrainingCycle(100,10,true);
+        }
+
+        static void Main(string[] args)
+        {
+            // Lists for incorrect values identified
+            PreviousWrong = ReadIncorrect();
+
+            // Reading Labels and Images
+            List<int> labels = ReadLabels();
+            List<dynamic> images = ReadImages();
+            MNIST.Init(labels, images[0], images[1]);
+
+            // Instantiating a new Network
+            NeuralNetwork = new Network(784, 128, 10);
+
+            // Setup the networks weights correctly
+            InitaliseNetwork();
+
+            // Train network
+            TrainingCycle(MNIST.totalImages, 10,true,true);
+
 
             WriteIncorrect(NewIncorrect);
             NeuralNetwork.Save();
