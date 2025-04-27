@@ -263,54 +263,46 @@ namespace Neural_Network
 
         public void BackPropogation(int target, double[] input)
         {
-            // Output layer deltas (softmax + cross-entropy)
             double[] outputDeltas = new double[NumOutputNeurons];
-            for (int o = 0; o < NumOutputNeurons; o++)
+            for (int OutNeuron = 0; OutNeuron < NumOutputNeurons; OutNeuron++)
             {
-                double y = (target == o) ? 1 : 0;
-                double a = OutputActivation[o]; // after softmax
-                outputDeltas[o] = (a - y); // CE Error Calc
+                double y = (target == OutNeuron) ? 1 : 0;
+                outputDeltas[OutNeuron] = (OutputActivation[OutNeuron] - y); // CE Error Calc
             }
 
-            // Hidden layer deltas
             double[] hiddenDeltas = new double[NumHiddenNeurons];
-            for (int h = 0; h < NumHiddenNeurons; h++)
+            for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++)
             {
-                double a = PreFuncHiddenValues[h];
+                double a = PreFuncHiddenValues[HiddenNeuron];
                 double sum = 0;
                 for (int o = 0; o < NumOutputNeurons; o++)
                 {
-                    sum += HiddenDeltaErrorCalc(0, o, h, outputDeltas[o]);
+                    sum += HiddenDeltaErrorCalc(0, o, HiddenNeuron, outputDeltas[o]);
                 }
-                hiddenDeltas[h] = sum * DerivativeReLu(a);
+                hiddenDeltas[HiddenNeuron] = sum * DerivativeReLu(a);
             }
 
-            // Update weights and biases (Hidden → Output)
-            for (int h = 0; h < NumHiddenNeurons; h++)
+            for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++)
             {
                 for (int o = 0; o < NumOutputNeurons; o++)
                 {
-                    OutputHiddenWeights[h, o] -= LearningCoefficient * HiddenActivation[h] * outputDeltas[o];
+                    OutputHiddenWeights[HiddenNeuron, o] -= LearningCoefficient * HiddenActivation[HiddenNeuron] * outputDeltas[o];
                 }
+
+                HiddenNeuronBias[HiddenNeuron] -= LearningCoefficient * hiddenDeltas[HiddenNeuron];
             }
 
-            for (int o = 0; o < NumOutputNeurons; o++)
+            for (int OutNeuron = 0; OutNeuron < NumOutputNeurons; OutNeuron++)
             {
-                OutputNeuronBias[o] -= LearningCoefficient * outputDeltas[o];
+                OutputNeuronBias[OutNeuron] -= LearningCoefficient * outputDeltas[OutNeuron];
             }
 
-            // Update weights and biases (Input → Hidden)
-            for (int i = 0; i < NumInputNeurons; i++)
+            for (int InNeuron = 0; InNeuron < NumInputNeurons; InNeuron++)
             {
-                for (int h = 0; h < NumHiddenNeurons; h++)
+                for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++)
                 {
-                    InputHiddenWeights[i, h] -= LearningCoefficient * input[i] * hiddenDeltas[h];
+                    InputHiddenWeights[InNeuron, HiddenNeuron] -= LearningCoefficient * input[InNeuron] * hiddenDeltas[HiddenNeuron];
                 }
-            }
-
-            for (int h = 0; h < NumHiddenNeurons; h++)
-            {
-                HiddenNeuronBias[h] -= LearningCoefficient * hiddenDeltas[h];
             }
         }
 
