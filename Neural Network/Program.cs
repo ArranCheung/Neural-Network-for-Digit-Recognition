@@ -622,11 +622,6 @@ namespace Neural_Network
             List<dynamic> testImages = ReadImages("MNIST Labelled Dataset\\t10k-images.idx3-ubyte");
             MNIST.InitTest(testLabels, testImages[0], testImages[1]);
 
-
-            double[] test = MNIST.testImages[9713];
-            NeuralNetwork.ForwardPropagation(test, 9);
-            NeuralNetwork.BackPropogation(9, test);
-
             // Show menu
             Menu();
 
