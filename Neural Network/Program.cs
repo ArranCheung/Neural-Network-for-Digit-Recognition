@@ -232,32 +232,34 @@ namespace Neural_Network
             for (int layer = 0; layer < NumHiddenLayers; layer++)
             {
                 OutputValues = new double[NumHiddenNeurons];
+                var currentLayer = layersWeights[layer];
 
-                for (int i = 0; i < layersWeights[layer].GetLength(1); i++)
+                Parallel.For(0, currentLayer.GetLength(1), i =>
                 {
                     double value = 0;
-                    for (int k = 0; k < layersWeights[layer].GetLength(0); k++)
+                    for (int k = 0; k < currentLayer.GetLength(0); k++)
                     {
-                        value += layersWeights[layer][k, i] * layersActivation[layer][k];
+                        value += currentLayer[k, i] * layersActivation[layer][k];
                     }
 
                     OutputValues[i] = ReLU(value + layersBias[layer][i]);
-                }
+                });
                 layersActivation[layer + 1] = OutputValues;
             }
 
             OutputValues = new double[NumOutputNeurons];
 
-            for (int i = 0; i < layersWeights.Last().GetLength(1); i++)
+            var lastlayerweights = layersWeights.Last();
+            Parallel.For(0, lastlayerweights.GetLength(1), i =>
             {
                 double value = 0;
-                for (int k = 0; k < layersWeights.Last().GetLength(0); k++)
+                for (int k = 0; k < lastlayerweights.GetLength(0); k++)
                 {
-                    value += layersWeights.Last()[k, i] * layersActivation[layersActivation.Count - 2][k];
+                    value += lastlayerweights[k, i] * layersActivation[layersActivation.Count - 2][k];
                 }
 
                 OutputValues[i] = (value + OutputNeuronBias[i]);
-            }
+            });
 
             double[] SMout = SoftMax(OutputValues);
             layersActivation[layersActivation.Count - 1] = SMout;
