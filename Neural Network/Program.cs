@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Neural_Network
 {
@@ -267,18 +268,18 @@ namespace Neural_Network
         public void BackPropogation(int target, double[] input)
         {
             double[] outputDeltas = new double[NumOutputNeurons];
-            for (int OutNeuron = 0; OutNeuron < NumOutputNeurons; OutNeuron++)
+            Parallel.For(0, NumOutputNeurons, OutNeuron =>
             {
                 double y = (target == OutNeuron) ? 1 : 0;
-                outputDeltas[OutNeuron] = (layersActivation.Last()[OutNeuron] - y); // CE Error Calc
-            }
+                outputDeltas[OutNeuron] = (layersActivation.Last()[OutNeuron] - y);
+            });
 
             List<double[]> layerHiddenDelta = new List<double[]> { outputDeltas };
             for (int i = 0; i < NumHiddenLayers; i++)
             {
                 double[] hiddenDeltas = new double[NumHiddenNeurons];
 
-                for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++) // assumes hidden layers have unifrom amounts of neurons
+                Parallel.For(0, NumHiddenNeurons, HiddenNeuron =>
                 {
                     double a = layersActivation[layersActivation.Count - 2 - i][HiddenNeuron];
                     double sum = 0;
@@ -288,14 +289,14 @@ namespace Neural_Network
                         sum += HiddenDeltaErrorCalc(i, o, HiddenNeuron, layerHiddenDelta[i][o]);
                     }
                     hiddenDeltas[HiddenNeuron] = sum * DerivativeReLu(a);
-                }
+                });
 
                 layerHiddenDelta.Add(hiddenDeltas);
             }
 
             for (int layer = 0; layer < NumHiddenLayers; layer++)
             {
-                for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++)
+                Parallel.For(0, NumHiddenNeurons, HiddenNeuron =>
                 {
                     int compare = (layer == 0) ? NumOutputNeurons : NumHiddenNeurons;
                     for (int o = 0; o < compare; o++)
@@ -304,21 +305,21 @@ namespace Neural_Network
                     }
 
                     layersBias[layer][HiddenNeuron] -= LearningCoefficient * layerHiddenDelta[layerHiddenDelta.Count - 1 - layer][HiddenNeuron];
-                }
+                });
             }
 
-            for (int OutNeuron = 0; OutNeuron < NumOutputNeurons; OutNeuron++)
+            Parallel.For(0, NumOutputNeurons, OutNeuron =>
             {
                 OutputNeuronBias[OutNeuron] -= LearningCoefficient * outputDeltas[OutNeuron];
-            }
+            });
 
-            for (int InNeuron = 0; InNeuron < NumInputNeurons; InNeuron++)
+            Parallel.For(0, NumInputNeurons, InNeuron =>
             {
                 for (int HiddenNeuron = 0; HiddenNeuron < NumHiddenNeurons; HiddenNeuron++)
                 {
                     InputHiddenWeights[InNeuron, HiddenNeuron] -= LearningCoefficient * input[InNeuron] * layerHiddenDelta.Last()[HiddenNeuron];
                 }
-            }
+            });
         }
         public double SigmoidFunc(double InputValue) => (1d / (1 + Math.Exp(0 - InputValue)));
         public double DerivativeSigmoidFunc(double InputValue)
